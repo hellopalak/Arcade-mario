@@ -40,6 +40,9 @@ export class MarioGame {
 
   private running = false;
   private level!: LevelDef;
+  private lastTime = 0;
+  private dtAccum = 0;
+  private readonly FIXED_DT = 1000 / 60; // 60 FPS target
   private frame = 0;
 
   // Mario
@@ -241,6 +244,8 @@ export class MarioGame {
     }));
 
     this.running = true;
+    this.lastTime = 0;
+    this.dtAccum = 0;
     this.cb.onScore(0);
     this.cb.onCoins(0);
     this.cb.onMarioState('small');
@@ -249,9 +254,24 @@ export class MarioGame {
 
   stop() { this.running = false; }
 
-  private loop = () => {
+  private loop = (timestamp: number = 0) => {
     if (!this.running) return;
-    this.update();
+
+    // Delta-time: accumulate real time, step in fixed increments
+    if (this.lastTime === 0) this.lastTime = timestamp;
+    let dt = timestamp - this.lastTime;
+    this.lastTime = timestamp;
+    // Clamp dt to avoid spiral of death on tab-switch or lag spikes
+    if (dt > 100) dt = 100;
+    this.dtAccum += dt;
+
+    // Run fixed-step updates (skip rendering until physics catches up)
+    while (this.dtAccum >= this.FIXED_DT) {
+      this.update();
+      this.dtAccum -= this.FIXED_DT;
+      if (!this.running) return;
+    }
+
     this.render();
     requestAnimationFrame(this.loop);
   };
@@ -747,7 +767,7 @@ export class MarioGame {
         if (g.squishTimer <= 0) g.alive = false;
         continue;
       }
-      if (!g.alive) return;
+      if (!g.alive) continue;
 
       g.vy += GRAVITY;
       g.vx = g.vx > 0 ? 1.2 * speedMult : -1.2 * speedMult;
@@ -773,6 +793,18 @@ export class MarioGame {
         const right = Math.floor((g.x + 31) / TILE);
         for (let c = left; c <= right; c++) {
           if (this.isSolid(this.tileAt(c, row))) { g.y = row * TILE - 32; g.vy = 0; break; }
+        }
+      }
+
+      // Edge detection: if grounded, check if there's ground ahead; if not, turn around
+      if (g.vy === 0) {
+        const checkCol = g.vx > 0
+          ? Math.floor((g.x + 32 + 4) / TILE)  // one step ahead (right)
+          : Math.floor((g.x - 4) / TILE);       // one step ahead (left)
+        const groundRow = Math.floor((g.y + 32) / TILE); // tile below goomba's feet
+        if (!this.isSolid(this.tileAt(checkCol, groundRow))) {
+          // No ground ahead — turn around
+          g.vx *= -1;
         }
       }
     }

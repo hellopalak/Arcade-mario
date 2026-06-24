@@ -1,8 +1,11 @@
 import './style.css';
 import {
   updatePlayerScore,
+  syncPlayerToFirestore,
+  subscribeToLeaderboard,
+  getLeaderboard,
 } from './firebase';
-import type { PlayerData } from './firebase';
+import type { PlayerData, LeaderboardEntry } from './firebase';
 import { MarioGame } from './game';
 import type { SoundEvent } from './game';
 import type { Unsubscribe } from 'firebase/firestore';
@@ -17,6 +20,7 @@ let game: MarioGame | null = null;
 let lbUnsubscribe: Unsubscribe | null = null;
 let isFirebaseAvailable = true;
 let lbViewMode: 'leaderboard' | 'my_runs' = 'leaderboard';
+let firebaseLeaderboard: LeaderboardEntry[] = [];
 
 // ===== STORAGE =====
 function getLocalPlayerData(): PlayerData | null {
@@ -273,6 +277,16 @@ function bindEvents() {
     };
     setLocalPlayerData(playerData);
 
+    // Sync player to Firestore so they appear on the global leaderboard
+    try {
+      await syncPlayerToFirestore(playerData);
+    } catch (e) {
+      console.warn('Could not sync player to Firestore:', e);
+    }
+
+    // Subscribe to real-time Firestore leaderboard
+    startFirebaseLeaderboard();
+
     setupGameScreen();
     showScreen('gameScreen');
     initGame();
@@ -425,6 +439,27 @@ async function saveScore(finalScore: number) {
   if (isNewBest) showToast('🎉 New personal best!');
 }
 
+// ===== FIREBASE LEADERBOARD =====
+function startFirebaseLeaderboard() {
+  if (lbUnsubscribe) lbUnsubscribe();
+
+  // First, try to load leaderboard immediately
+  getLeaderboard(50).then(entries => {
+    if (entries.length > 0) {
+      firebaseLeaderboard = entries;
+      if (lbViewMode === 'leaderboard') renderRankingsView();
+    }
+  }).catch(() => { /* ignore */ });
+
+  // Then subscribe to real-time updates
+  const unsub = subscribeToLeaderboard((entries) => {
+    firebaseLeaderboard = entries;
+    if (lbViewMode === 'leaderboard') renderRankingsView();
+  }, 50);
+
+  if (unsub) lbUnsubscribe = unsub;
+}
+
 // ===== LEADERBOARD =====
 function refreshLeaderboardView() {
   if (lbViewMode === 'leaderboard') {
@@ -437,27 +472,49 @@ function refreshLeaderboardView() {
 function renderRankingsView() {
   const list = document.getElementById('lbList');
   if (!list) return;
-  const entries = getLeaderboardEntries();
-  if (entries.length === 0) {
-    list.innerHTML = '<div class="lb-empty">No scores yet. Play a game!</div>';
-    return;
+
+  // Use Firestore data if available, otherwise fall back to local
+  if (firebaseLeaderboard.length > 0) {
+    list.innerHTML = firebaseLeaderboard.map((entry, i) => {
+      const rank = i + 1;
+      const topClass = rank <= 3 ? ` top-${rank}` : '';
+      const currentClass = entry.uid === playerData?.uid ? ' current-user' : '';
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
+      return `
+        <div class="lb-entry${topClass}${currentClass}">
+          <div class="lb-rank">${medal}</div>
+          <div class="lb-run-icon">🎮</div>
+          <div class="lb-info">
+            <div class="lb-name">${escapeHtml(entry.playerName)}</div>
+            <div class="lb-meta">Games: ${entry.gamesPlayed} · Total: ${entry.totalScore.toLocaleString()}</div>
+          </div>
+          <div class="lb-score">${entry.bestScore.toLocaleString()}</div>
+        </div>`;
+    }).join('');
+  } else {
+    // Fallback to local leaderboard
+    const entries = getLeaderboardEntries();
+    if (entries.length === 0) {
+      list.innerHTML = '<div class="lb-empty">No scores yet. Play a game!</div>';
+      return;
+    }
+    list.innerHTML = entries.map((entry, i) => {
+      const rank = i + 1;
+      const topClass = rank <= 3 ? ` top-${rank}` : '';
+      const currentClass = entry.uid === playerData?.uid ? ' current-user' : '';
+      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
+      return `
+        <div class="lb-entry${topClass}${currentClass}">
+          <div class="lb-rank">${medal}</div>
+          <div class="lb-run-icon">🎮</div>
+          <div class="lb-info">
+            <div class="lb-name">${escapeHtml(entry.playerName)}</div>
+            <div class="lb-meta">${timeAgo(entry.timestamp)} · Best: ${entry.bestScore.toLocaleString()}</div>
+          </div>
+          <div class="lb-score">${entry.latestScore.toLocaleString()}</div>
+        </div>`;
+    }).join('');
   }
-  list.innerHTML = entries.map((entry, i) => {
-    const rank = i + 1;
-    const topClass = rank <= 3 ? ` top-${rank}` : '';
-    const currentClass = entry.uid === playerData?.uid ? ' current-user' : '';
-    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
-    return `
-      <div class="lb-entry${topClass}${currentClass}">
-        <div class="lb-rank">${medal}</div>
-        <div class="lb-run-icon">🎮</div>
-        <div class="lb-info">
-          <div class="lb-name">${escapeHtml(entry.playerName)}</div>
-          <div class="lb-meta">${timeAgo(entry.timestamp)} · Best: ${entry.bestScore.toLocaleString()}</div>
-        </div>
-        <div class="lb-score">${entry.latestScore.toLocaleString()}</div>
-      </div>`;
-  }).join('');
 }
 
 function renderMyRunsView() {

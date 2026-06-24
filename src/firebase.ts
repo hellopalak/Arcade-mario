@@ -34,7 +34,7 @@ let _db: Firestore | null = null;
 let _googleProvider: GoogleAuthProvider | null = null;
 let _firebaseReady = false;
 
-function ensureFirebase(): boolean {
+export function ensureFirebase(): boolean {
   if (!_firebaseReady) {
     try {
       _app = initializeApp(firebaseConfig);
@@ -130,8 +130,34 @@ export async function createOrUpdatePlayer(user: User, playerName: string): Prom
   }
 }
 
+// Create or update a player doc in Firestore using a local UID (no auth required)
+export async function syncPlayerToFirestore(data: PlayerData): Promise<void> {
+  if (!ensureFirebase() || !_db) return;
+  const docRef = doc(_db, 'players', data.uid);
+  const existing = await getDoc(docRef);
+
+  if (existing.exists()) {
+    await updateDoc(docRef, {
+      playerName: data.playerName,
+      lastPlayed: Date.now(),
+    });
+  } else {
+    await setDoc(docRef, {
+      uid: data.uid,
+      displayName: data.displayName || data.playerName,
+      email: data.email || '',
+      photoURL: data.photoURL || '',
+      playerName: data.playerName,
+      bestScore: data.bestScore || 0,
+      totalScore: data.totalScore || 0,
+      gamesPlayed: data.gamesPlayed || 0,
+      lastPlayed: Date.now(),
+    });
+  }
+}
+
 export async function updatePlayerScore(uid: string, score: number): Promise<void> {
-  if (!_db) return;
+  if (!ensureFirebase() || !_db) return;
   const docRef = doc(_db, 'players', uid);
   const docSnap = await getDoc(docRef);
 
@@ -145,6 +171,19 @@ export async function updatePlayerScore(uid: string, score: number): Promise<voi
       bestScore: newBest,
       totalScore: newTotal,
       gamesPlayed: newGames,
+      lastPlayed: Date.now(),
+    });
+  } else {
+    // Player doc doesn't exist yet — create it with this score
+    await setDoc(docRef, {
+      uid,
+      displayName: '',
+      email: '',
+      photoURL: '',
+      playerName: uid,
+      bestScore: score,
+      totalScore: score,
+      gamesPlayed: 1,
       lastPlayed: Date.now(),
     });
   }
