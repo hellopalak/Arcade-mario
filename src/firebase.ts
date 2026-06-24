@@ -238,5 +238,5 @@ export async function getLeaderboard(maxEntries: number = 20): Promise<Leaderboa
       gamesPlayed: data.gamesPlayed,
     });
   });
-  return entries;
+   return entries;
 }
