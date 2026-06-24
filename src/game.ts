@@ -60,9 +60,41 @@ export class MarioGame {
   private camX = 0;
   private maxCamX = 0; // camera never goes left
 
-  // Score
-  private score = 0;
-  private coins = 0;
+  // Score (obfuscated to prevent memory scans and Cheat Engine hacks)
+  private _scoreObf = 0 ^ 0x3f1a9b4c;
+  private _scoreShadow = 0;
+  private _coinsObf = 0 ^ 0x3f1a9b4c;
+  private _coinsShadow = 0;
+
+  private get score(): number {
+    const val = this._scoreObf ^ 0x3f1a9b4c;
+    if (val !== this._scoreShadow) {
+      console.warn('Memory check failed: game state tampered.');
+      this.running = false;
+      return 0;
+    }
+    return val;
+  }
+
+  private set score(val: number) {
+    this._scoreShadow = val;
+    this._scoreObf = val ^ 0x3f1a9b4c;
+  }
+
+  private get coins(): number {
+    const val = this._coinsObf ^ 0x3f1a9b4c;
+    if (val !== this._coinsShadow) {
+      console.warn('Memory check failed: game state tampered.');
+      this.running = false;
+      return 0;
+    }
+    return val;
+  }
+
+  private set coins(val: number) {
+    this._coinsShadow = val;
+    this._coinsObf = val ^ 0x3f1a9b4c;
+  }
 
   // Endless generation
   private lastGeneratedCol = 112;
