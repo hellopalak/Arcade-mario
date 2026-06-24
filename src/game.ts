@@ -168,11 +168,16 @@ export class MarioGame {
   private bindInput() {
     const kd = (e: KeyboardEvent) => {
       this.keys.add(e.code);
-      if ((e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') && this.grounded && this.running) {
-        this.jump(); e.preventDefault();
+      // Prevent game keys from triggering focused HTML buttons or scrolling
+      const gameKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'];
+      if (gameKeys.includes(e.code) && this.running) {
+        e.preventDefault();
+        // Blur any focused button so Space/Enter can't accidentally click it
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
       }
-      if (e.code === 'ArrowUp') e.preventDefault();
-      if (e.code === 'ArrowDown') e.preventDefault();
+      if ((e.code === 'ArrowUp' || e.code === 'KeyW') && this.grounded && this.running) {
+        this.jump();
+      }
     };
     const ku = (e: KeyboardEvent) => this.keys.delete(e.code);
     window.addEventListener('keydown', kd);

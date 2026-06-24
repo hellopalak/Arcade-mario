@@ -168,7 +168,7 @@ function renderApp() {
           <div class="overlay-sub">World 1-1</div>
           <button id="playBtn" class="btn-play">▶ PLAY</button>
           <div class="controls-hint">
-            <kbd>←</kbd> <kbd>→</kbd> Move · <kbd>Space</kbd> / <kbd>↑</kbd> Jump<br>
+            <kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> Move · <kbd>↑</kbd> / <kbd>W</kbd> Jump<br>
             Mobile: Use on-screen controls
           </div>
         </div>
