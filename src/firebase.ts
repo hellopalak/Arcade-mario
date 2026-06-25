@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import type { FirebaseApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signOut, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import type { User, Auth } from 'firebase/auth';
 import {
   getFirestore,
@@ -31,7 +31,6 @@ const firebaseConfig = {
 let _app: FirebaseApp | null = null;
 let _auth: Auth | null = null;
 let _db: Firestore | null = null;
-let _googleProvider: GoogleAuthProvider | null = null;
 let _firebaseReady = false;
 
 export function ensureFirebase(): boolean {
@@ -40,7 +39,6 @@ export function ensureFirebase(): boolean {
       _app = initializeApp(firebaseConfig);
       _auth = getAuth(_app);
       _db = getFirestore(_app);
-      _googleProvider = new GoogleAuthProvider();
       _firebaseReady = true;
     } catch (e) {
       console.warn('Firebase init failed:', e);
@@ -72,10 +70,15 @@ export interface LeaderboardEntry {
 }
 
 // --- Auth Functions ---
-export async function signInWithGoogle(): Promise<User> {
-  if (!ensureFirebase() || !_auth || !_googleProvider) throw new Error('Firebase not available');
-  const result = await signInWithPopup(_auth, _googleProvider);
-  return result.user;
+export async function signInAnonymouslyUser(): Promise<User | null> {
+  if (!ensureFirebase() || !_auth) return null;
+  try {
+    const result = await signInAnonymously(_auth);
+    return result.user;
+  } catch (e) {
+    console.warn('Anonymous auth failed:', e);
+    return null;
+  }
 }
 
 export async function logOut(): Promise<void> {
@@ -102,46 +105,13 @@ export async function getPlayerData(uid: string): Promise<PlayerData | null> {
   return null;
 }
 
-export async function createOrUpdatePlayer(user: User, playerName: string): Promise<void> {
-  if (!_db) return;
-  const docRef = doc(_db, 'players', user.uid);
-  const existing = await getDoc(docRef);
-
-  if (existing.exists()) {
-    await updateDoc(docRef, {
-      displayName: user.displayName || '',
-      email: user.email || '',
-      photoURL: user.photoURL || '',
-      playerName: playerName,
-    });
-  } else {
-    const playerData: PlayerData = {
-      uid: user.uid,
-      displayName: user.displayName || '',
-      email: user.email || '',
-      photoURL: user.photoURL || '',
-      playerName: playerName,
-      bestScore: 0,
-      totalScore: 0,
-      gamesPlayed: 0,
-      lastPlayed: Date.now(),
-    };
-    await setDoc(docRef, playerData);
-  }
-}
-
-// Create or update a player doc in Firestore using a local UID (no auth required)
+// Create a new player doc in Firestore using a local UID (no auth required / anonymous auth)
 export async function syncPlayerToFirestore(data: PlayerData): Promise<void> {
   if (!ensureFirebase() || !_db) return;
   const docRef = doc(_db, 'players', data.uid);
   const existing = await getDoc(docRef);
 
-  if (existing.exists()) {
-    await updateDoc(docRef, {
-      playerName: data.playerName,
-      lastPlayed: Date.now(),
-    });
-  } else {
+  if (!existing.exists()) {
     await setDoc(docRef, {
       uid: data.uid,
       displayName: data.displayName || data.playerName,

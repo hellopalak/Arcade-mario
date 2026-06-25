@@ -3,11 +3,11 @@ import {
   updatePlayerScore,
   subscribeToLeaderboard,
   getLeaderboard,
-  signInWithGoogle,
+  signInAnonymouslyUser,
   logOut,
   onAuthChange,
   getPlayerData,
-  createOrUpdatePlayer,
+  syncPlayerToFirestore,
 } from './firebase';
 import type { PlayerData, LeaderboardEntry } from './firebase';
 import { MarioGame } from './game';
@@ -125,34 +125,12 @@ function renderApp() {
         <div class="game-badge">
           <span class="mario-icon">🍄</span> LEVEL 1-1
         </div>
-        <button id="googleLoginBtn" class="google-btn">
-          <svg viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-          </svg>
-          Sign in with Google
-        </button>
-      </div>
-    </div>
-
-    <div id="nameScreen" class="screen name-screen">
-      <div class="name-card">
-        <div class="name-card-icon">🍄</div>
-        <h2>SUPER MARIO</h2>
-        <p>Set your player name to start playing</p>
         
-        <div id="userPreviewContainer" class="user-preview" style="display: none;">
-          <img id="userPreviewAvatar" src="" alt="Avatar" />
-          <div class="user-info">
-            <div id="userPreviewName" class="name">Name</div>
-            <div id="userPreviewEmail" class="email">email@example.com</div>
-          </div>
+        <div class="welcome-form" style="width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+          <input id="playerNameInput" class="name-input" type="text" placeholder="Enter Player Name..." maxlength="20" autofocus style="margin-bottom: 0;" />
+          <button id="startGameBtn" class="btn-primary" disabled>PLAY GAME</button>
+          <button id="welcomeLeaderboardBtn" class="btn-secondary">🏆 VIEW LEADERBOARD</button>
         </div>
-
-        <input id="playerNameInput" class="name-input" type="text" placeholder="Your player name..." maxlength="20" autofocus />
-        <button id="startGameBtn" class="btn-primary" disabled>PLAY</button>
       </div>
     </div>
 
@@ -185,7 +163,7 @@ function renderApp() {
             <span id="playerTagName"></span>
           </div>
           <button id="leaderboardBtn" class="btn-icon" title="Leaderboard">🏆</button>
-          <button id="logoutBtn" class="btn-icon" title="Sign Out">⏏</button>
+          <button id="logoutBtn" class="btn-icon" title="Switch Player">👤</button>
         </div>
       </div>
       <div class="game-canvas-wrap">
@@ -275,29 +253,33 @@ function bindEvents() {
 
   startBtn.addEventListener('click', async () => {
     const name = nameInput.value.trim();
-    if (name.length < 2 || !currentUser) return;
+    if (name.length < 2) return;
     startBtn.disabled = true;
     startBtn.textContent = 'Loading...';
 
     try {
-      await createOrUpdatePlayer(currentUser, name);
-      const fetched = await getPlayerData(currentUser.uid);
-      if (fetched) {
-        playerData = fetched;
-      } else {
-        playerData = {
-          uid: currentUser.uid,
-          displayName: currentUser.displayName || '',
-          email: currentUser.email || '',
-          photoURL: currentUser.photoURL || '',
-          playerName: name,
-          bestScore: 0,
-          totalScore: 0,
-          gamesPlayed: 0,
-          lastPlayed: Date.now(),
-        };
-      }
+      const uid = currentUser ? currentUser.uid : getOrCreateLocalUid();
+      playerData = {
+        uid: uid,
+        displayName: name,
+        email: '',
+        photoURL: '',
+        playerName: name,
+        bestScore: 0,
+        totalScore: 0,
+        gamesPlayed: 0,
+        lastPlayed: Date.now(),
+      };
       setLocalPlayerData(playerData);
+
+      if (isFirebaseAvailable) {
+        try {
+          await syncPlayerToFirestore(playerData);
+        } catch (e) {
+          console.warn('Failed to sync player to Firestore:', e);
+        }
+      }
+
       startFirebaseLeaderboard();
       setupGameScreen();
       showScreen('gameScreen');
@@ -306,25 +288,13 @@ function bindEvents() {
       console.error(e);
       showToast('Failed to save player name. Please try again.');
       startBtn.disabled = false;
-      startBtn.textContent = 'PLAY';
+      startBtn.textContent = 'PLAY GAME';
     }
   });
 
-  const googleBtn = document.getElementById('googleLoginBtn');
-  if (googleBtn) {
-    googleBtn.addEventListener('click', async () => {
-      googleBtn.setAttribute('disabled', 'true');
-      const originalText = googleBtn.innerHTML;
-      googleBtn.innerHTML = 'Signing in...';
-      try {
-        await signInWithGoogle();
-      } catch (e) {
-        console.error(e);
-        showToast('Login failed. Please try again.');
-        googleBtn.innerHTML = originalText;
-        googleBtn.removeAttribute('disabled');
-      }
-    });
+  const welcomeLbBtn = document.getElementById('welcomeLeaderboardBtn');
+  if (welcomeLbBtn) {
+    welcomeLbBtn.addEventListener('click', openLeaderboard);
   }
 
   document.getElementById('playBtn')!.addEventListener('click', startGame);
@@ -351,15 +321,38 @@ function bindEvents() {
   });
 
   document.getElementById('logoutBtn')!.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to switch player profiles? Your current progress is saved.')) return;
     game?.stop();
-    if (lbUnsubscribe) lbUnsubscribe();
+    localStorage.removeItem('arcade_player');
     playerData = null;
+    
+    // Clear user preview inputs on welcome screen
+    const nameInput = document.getElementById('playerNameInput') as HTMLInputElement;
+    if (nameInput) {
+      nameInput.value = '';
+    }
+    const startBtn = document.getElementById('startGameBtn') as HTMLButtonElement;
+    if (startBtn) {
+      startBtn.disabled = true;
+      startBtn.textContent = 'PLAY GAME';
+    }
+
     currentUser = null;
     try {
       await logOut();
     } catch (e) {
       console.warn('Logout failed:', e);
     }
+    
+    // Try anonymous sign in again for the new session
+    if (isFirebaseAvailable) {
+      try {
+        currentUser = await signInAnonymouslyUser();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    showScreen('loginScreen');
   });
 }
 
@@ -612,56 +605,109 @@ function escapeHtml(text: string): string {
   return div.innerHTML;
 }
 
+// ===== LOCAL STORAGE GUEST UID =====
+function getOrCreateLocalUid(): string {
+  let uid = localStorage.getItem('arcade_local_uid');
+  if (!uid) {
+    uid = 'guest_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('arcade_local_uid', uid);
+  }
+  return uid;
+}
+
 // ===== INIT =====
 renderApp();
 
-// Handle auth state changes
+// Start subscribing to the leaderboard immediately on load so it's populated for everyone
+if (isFirebaseAvailable) {
+  try {
+    startFirebaseLeaderboard();
+  } catch (e) {
+    console.warn('Could not initialize Firebase leaderboard:', e);
+  }
+}
+
+// Handle auth state changes in the background (anonymous auth)
 onAuthChange(async (user) => {
   currentUser = user;
-  if (user) {
-    // User is signed in!
+  if (user && playerData && playerData.uid !== user.uid) {
+    playerData.uid = user.uid;
+    setLocalPlayerData(playerData);
+    if (isFirebaseAvailable) {
+      try {
+        await syncPlayerToFirestore(playerData);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }
+});
+
+// App initialization logic
+async function initApp() {
+  const localPlayerRaw = localStorage.getItem('arcade_player');
+  if (localPlayerRaw) {
     try {
-      const dbPlayer = await getPlayerData(user.uid);
-      if (dbPlayer) {
-        // Player already has a profile! Go directly to gameScreen
-        playerData = dbPlayer;
-        setLocalPlayerData(playerData);
-        startFirebaseLeaderboard();
+      playerData = JSON.parse(localPlayerRaw);
+      if (playerData) {
         setupGameScreen();
         showScreen('gameScreen');
         initGame();
-      } else {
-        // First time signing in! Show name screen to let them set a player name
-        showScreen('nameScreen');
-        // Show Google user preview
-        const preview = document.getElementById('userPreviewContainer')!;
-        if (preview) {
-          preview.style.display = 'flex';
-          const avatar = document.getElementById('userPreviewAvatar');
-          if (avatar) avatar.setAttribute('src', user.photoURL || '/arcade_logo.png');
-          const name = document.getElementById('userPreviewName');
-          if (name) name.textContent = user.displayName || 'Anonymous';
-          const email = document.getElementById('userPreviewEmail');
-          if (email) email.textContent = user.email || '';
+
+        // Check for Firebase updates/sync in background
+        if (isFirebaseAvailable) {
+          let authUser = currentUser;
+          if (!authUser) {
+            try {
+              authUser = await signInAnonymouslyUser();
+              if (authUser) currentUser = authUser;
+            } catch (e) {
+              /* ignore */
+            }
+          }
+
+          const uidToUse = authUser ? authUser.uid : playerData.uid;
+          if (playerData.uid !== uidToUse) {
+            playerData.uid = uidToUse;
+            setLocalPlayerData(playerData);
+          }
+
+          try {
+            const dbPlayer = await getPlayerData(playerData.uid);
+            if (dbPlayer) {
+              playerData.bestScore = Math.max(playerData.bestScore, dbPlayer.bestScore);
+              playerData.totalScore = Math.max(playerData.totalScore, dbPlayer.totalScore);
+              playerData.gamesPlayed = Math.max(playerData.gamesPlayed, dbPlayer.gamesPlayed);
+              setLocalPlayerData(playerData);
+              setupGameScreen();
+            } else {
+              await syncPlayerToFirestore(playerData);
+            }
+          } catch (e) {
+            console.warn('Sync failed:', e);
+          }
         }
-        
-        // Prefill name input
-        const nameInput = document.getElementById('playerNameInput') as HTMLInputElement;
-        const startBtn = document.getElementById('startGameBtn') as HTMLButtonElement;
-        if (nameInput && startBtn) {
-          nameInput.value = user.displayName || '';
-          startBtn.disabled = nameInput.value.trim().length < 2;
-        }
-        if (startBtn) {
-          startBtn.textContent = 'PLAY';
-        }
+        return;
       }
     } catch (e) {
-      console.error(e);
-      showToast('Error connecting to database.');
+      console.warn('Error reading local player:', e);
     }
-  } else {
-    // User is signed out, show login screen
-    showScreen('loginScreen');
   }
-});
+
+  // No player profile found, load anonymous auth first in background (if possible) to get a UID
+  if (isFirebaseAvailable) {
+    try {
+      const authUser = await signInAnonymouslyUser();
+      if (authUser) currentUser = authUser;
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  // Show welcome screen
+  document.getElementById('loadingScreen')?.classList.remove('active');
+  showScreen('loginScreen');
+}
+
+// Run app initialization
+initApp();
