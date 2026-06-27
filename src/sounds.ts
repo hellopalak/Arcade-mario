@@ -230,7 +230,6 @@ const bgmBass: BGMNote[] = [
   { freq: 0, dur: 1.5 }, { freq: 98, dur: 0.5 }, { freq: 0, dur: 1.5 },
 ];
 
-let bgmTimers: number[] = [];
 let bgmPlaying = false;
 let bgmLoopTimeout: number | null = null;
 let bgmGainNode: GainNode | null = null;
