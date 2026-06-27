@@ -17,6 +17,7 @@ import type { User } from 'firebase/auth';
 import {
   playCoinSound, playPowerUpSound, playDamageSound,
   playBulletHitSound, playDeathSound, playJumpSound, playStompSound,
+  startBGM, stopBGM, pauseBGM,
 } from './sounds';
 
 // ===== STATE =====
@@ -367,6 +368,7 @@ function bindEvents() {
 
 function goToMenu() {
   game?.stop();
+  stopBGM();
   document.getElementById('gameOverOverlay')!.classList.remove('active');
   document.getElementById('levelCompleteOverlay')!.classList.remove('active');
   document.getElementById('startOverlay')!.classList.remove('hidden');
@@ -427,15 +429,18 @@ function startGame() {
   document.getElementById('liveScore')!.textContent = '0';
   document.getElementById('liveCoins')!.textContent = '🪙 0';
   game?.start();
+  startBGM();
 }
 
 async function handleGameOver(finalScore: number) {
+  pauseBGM();
   document.getElementById('gameOverOverlay')!.classList.add('active');
   document.getElementById('finalScore')!.textContent = `Score: ${finalScore}`;
   await saveScore(finalScore);
 }
 
 async function handleLevelComplete(finalScore: number) {
+  pauseBGM();
   document.getElementById('levelCompleteOverlay')!.classList.add('active');
   document.getElementById('lcScore')!.textContent = `Score: ${finalScore}`;
   showToast('🎉 Level Complete! Amazing!');

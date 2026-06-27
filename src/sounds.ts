@@ -138,3 +138,198 @@ export function playStompSound() {
   playTone(400, 0.08, 'square', 0.1);
   setTimeout(() => playTone(600, 0.06, 'square', 0.08), 40);
 }
+
+// ===== MARIO BGM (Synthesized Overworld Theme) =====
+// Classic Super Mario Bros overworld melody at very low volume
+
+interface BGMNote {
+  freq: number;  // Hz, 0 = rest
+  dur: number;   // beats
+}
+
+const BGM_VOLUME = 0.025 // Very low — just barely audible
+const BGM_BPM = 100;
+
+// Super Mario Bros overworld melody (simplified, loopable)
+const bgmMelody: BGMNote[] = [
+  // Bar 1-2: E E _ E _ C E _ G _ _ _ G _ _ _
+  { freq: 659, dur: 0.5 }, { freq: 659, dur: 0.5 }, { freq: 0, dur: 0.5 },
+  { freq: 659, dur: 0.5 }, { freq: 0, dur: 0.5 }, { freq: 523, dur: 0.5 },
+  { freq: 659, dur: 0.5 }, { freq: 0, dur: 0.5 }, { freq: 784, dur: 0.5 },
+  { freq: 0, dur: 1.5 }, { freq: 392, dur: 0.5 }, { freq: 0, dur: 1.5 },
+
+  // Bar 3-4: C _ _ G _ _ E _ _ A _ B _ Bb A _
+  { freq: 523, dur: 0.75 }, { freq: 0, dur: 0.25 }, { freq: 392, dur: 0.75 },
+  { freq: 0, dur: 0.25 }, { freq: 330, dur: 0.75 }, { freq: 0, dur: 0.25 },
+  { freq: 440, dur: 0.5 }, { freq: 494, dur: 0.5 }, { freq: 0, dur: 0.25 },
+  { freq: 466, dur: 0.25 }, { freq: 440, dur: 0.5 },
+
+  // Bar 5-6: G E G A _ F G _ E _ C D B _ _
+  { freq: 392, dur: 0.33 }, { freq: 659, dur: 0.33 }, { freq: 784, dur: 0.34 },
+  { freq: 880, dur: 0.5 }, { freq: 0, dur: 0.25 }, { freq: 698, dur: 0.25 },
+  { freq: 784, dur: 0.5 }, { freq: 0, dur: 0.25 }, { freq: 659, dur: 0.25 },
+  { freq: 0, dur: 0.25 }, { freq: 523, dur: 0.25 }, { freq: 587, dur: 0.25 },
+  { freq: 494, dur: 0.25 }, { freq: 0, dur: 0.5 },
+
+  // Bar 7-8 (repeat feel): high run
+  { freq: 0, dur: 0.5 },
+  { freq: 784, dur: 0.25 }, { freq: 740, dur: 0.25 }, { freq: 698, dur: 0.25 },
+  { freq: 622, dur: 0.5 }, { freq: 659, dur: 0.5 }, { freq: 0, dur: 0.25 },
+  { freq: 415, dur: 0.25 }, { freq: 440, dur: 0.25 }, { freq: 523, dur: 0.25 },
+  { freq: 0, dur: 0.25 }, { freq: 440, dur: 0.25 }, { freq: 523, dur: 0.25 },
+  { freq: 587, dur: 0.25 },
+
+  // Bar 9-10 (repeat feel)
+  { freq: 0, dur: 0.5 },
+  { freq: 784, dur: 0.25 }, { freq: 740, dur: 0.25 }, { freq: 698, dur: 0.25 },
+  { freq: 622, dur: 0.5 }, { freq: 659, dur: 0.5 }, { freq: 0, dur: 0.25 },
+  { freq: 1047, dur: 0.5 }, { freq: 1047, dur: 0.25 }, { freq: 1047, dur: 0.25 },
+  { freq: 0, dur: 1 },
+
+  // Bar 11-12: repeat opening
+  { freq: 659, dur: 0.5 }, { freq: 659, dur: 0.5 }, { freq: 0, dur: 0.5 },
+  { freq: 659, dur: 0.5 }, { freq: 0, dur: 0.5 }, { freq: 523, dur: 0.5 },
+  { freq: 659, dur: 0.5 }, { freq: 0, dur: 0.5 }, { freq: 784, dur: 0.5 },
+  { freq: 0, dur: 1.5 }, { freq: 392, dur: 0.5 }, { freq: 0, dur: 1.5 },
+];
+
+// Bass line (accompaniment)
+const bgmBass: BGMNote[] = [
+  { freq: 165, dur: 0.5 }, { freq: 165, dur: 0.5 }, { freq: 0, dur: 0.5 },
+  { freq: 165, dur: 0.5 }, { freq: 0, dur: 0.5 }, { freq: 131, dur: 0.5 },
+  { freq: 165, dur: 0.5 }, { freq: 0, dur: 0.5 }, { freq: 196, dur: 0.5 },
+  { freq: 0, dur: 1.5 }, { freq: 98, dur: 0.5 }, { freq: 0, dur: 1.5 },
+
+  { freq: 131, dur: 0.75 }, { freq: 0, dur: 0.25 }, { freq: 98, dur: 0.75 },
+  { freq: 0, dur: 0.25 }, { freq: 82, dur: 0.75 }, { freq: 0, dur: 0.25 },
+  { freq: 110, dur: 0.5 }, { freq: 123, dur: 0.5 }, { freq: 0, dur: 0.25 },
+  { freq: 117, dur: 0.25 }, { freq: 110, dur: 0.5 },
+
+  { freq: 98, dur: 0.33 }, { freq: 165, dur: 0.33 }, { freq: 196, dur: 0.34 },
+  { freq: 220, dur: 0.5 }, { freq: 0, dur: 0.25 }, { freq: 175, dur: 0.25 },
+  { freq: 196, dur: 0.5 }, { freq: 0, dur: 0.25 }, { freq: 165, dur: 0.25 },
+  { freq: 0, dur: 0.25 }, { freq: 131, dur: 0.25 }, { freq: 147, dur: 0.25 },
+  { freq: 123, dur: 0.25 }, { freq: 0, dur: 0.5 },
+
+  // Simplified loop for remaining bars
+  { freq: 0, dur: 0.5 },
+  { freq: 196, dur: 0.5 }, { freq: 185, dur: 0.5 }, { freq: 175, dur: 0.5 },
+  { freq: 156, dur: 0.5 }, { freq: 165, dur: 0.5 }, { freq: 0, dur: 0.25 },
+  { freq: 104, dur: 0.25 }, { freq: 110, dur: 0.25 }, { freq: 131, dur: 0.5 },
+  { freq: 110, dur: 0.25 }, { freq: 131, dur: 0.25 }, { freq: 147, dur: 0.25 },
+
+  { freq: 0, dur: 0.5 },
+  { freq: 196, dur: 0.5 }, { freq: 185, dur: 0.5 }, { freq: 175, dur: 0.5 },
+  { freq: 156, dur: 0.5 }, { freq: 165, dur: 0.5 }, { freq: 0, dur: 0.25 },
+  { freq: 262, dur: 0.5 }, { freq: 262, dur: 0.25 }, { freq: 262, dur: 0.25 },
+  { freq: 0, dur: 1 },
+
+  { freq: 165, dur: 0.5 }, { freq: 165, dur: 0.5 }, { freq: 0, dur: 0.5 },
+  { freq: 165, dur: 0.5 }, { freq: 0, dur: 0.5 }, { freq: 131, dur: 0.5 },
+  { freq: 165, dur: 0.5 }, { freq: 0, dur: 0.5 }, { freq: 196, dur: 0.5 },
+  { freq: 0, dur: 1.5 }, { freq: 98, dur: 0.5 }, { freq: 0, dur: 1.5 },
+];
+
+let bgmTimers: number[] = [];
+let bgmPlaying = false;
+let bgmLoopTimeout: number | null = null;
+let bgmGainNode: GainNode | null = null;
+
+function scheduleTrack(
+  notes: BGMNote[],
+  ctx: AudioContext,
+  startTime: number,
+  type: OscillatorType,
+  gainNode: GainNode,
+) {
+  let t = startTime;
+  const beatSec = 60 / BGM_BPM;
+
+  for (const note of notes) {
+    const duration = note.dur * beatSec;
+    if (note.freq > 0) {
+      const osc = ctx.createOscillator();
+      const noteGain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(note.freq, t);
+      noteGain.gain.setValueAtTime(1, t);
+      noteGain.gain.setValueAtTime(0.8, t + duration * 0.8);
+      noteGain.gain.linearRampToValueAtTime(0, t + duration * 0.98);
+      osc.connect(noteGain);
+      noteGain.connect(gainNode);
+      osc.start(t);
+      osc.stop(t + duration);
+    }
+    t += duration;
+  }
+  return t; // end time of this track
+}
+
+function loopBGM() {
+  if (!bgmPlaying) return;
+  const ctx = getCtx();
+
+  if (!bgmGainNode) {
+    bgmGainNode = ctx.createGain();
+    bgmGainNode.gain.setValueAtTime(BGM_VOLUME, ctx.currentTime);
+    bgmGainNode.connect(ctx.destination);
+  }
+
+  const startTime = ctx.currentTime + 0.05;
+
+  // Schedule melody (square wave — classic 8-bit)
+  const melodyEnd = scheduleTrack(bgmMelody, ctx, startTime, 'square', bgmGainNode);
+
+  // Schedule bass (triangle wave — warm low end)
+  scheduleTrack(bgmBass, ctx, startTime, 'triangle', bgmGainNode);
+
+  // Schedule next loop just before this one ends
+  const loopDuration = (melodyEnd - startTime) * 1000;
+  bgmLoopTimeout = window.setTimeout(() => {
+    if (bgmPlaying) loopBGM();
+  }, loopDuration - 100);
+}
+
+export function startBGM() {
+  if (bgmPlaying) return;
+  bgmPlaying = true;
+  bgmGainNode = null; // fresh gain node each start
+  loopBGM();
+}
+
+export function stopBGM() {
+  bgmPlaying = false;
+  if (bgmLoopTimeout !== null) {
+    clearTimeout(bgmLoopTimeout);
+    bgmLoopTimeout = null;
+  }
+  // Fade out the gain node
+  if (bgmGainNode) {
+    try {
+      const ctx = getCtx();
+      bgmGainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+    } catch { /* ignore */ }
+    bgmGainNode = null;
+  }
+}
+
+export function pauseBGM() {
+  if (!bgmPlaying) return;
+  bgmPlaying = false;
+  if (bgmLoopTimeout !== null) {
+    clearTimeout(bgmLoopTimeout);
+    bgmLoopTimeout = null;
+  }
+  if (bgmGainNode) {
+    try {
+      const ctx = getCtx();
+      bgmGainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.2);
+    } catch { /* ignore */ }
+    bgmGainNode = null;
+  }
+}
+
+export function resumeBGM() {
+  if (bgmPlaying) return;
+  startBGM();
+}
