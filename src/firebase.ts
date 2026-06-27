@@ -126,7 +126,7 @@ export async function syncPlayerToFirestore(data: PlayerData): Promise<void> {
   }
 }
 
-export async function updatePlayerScore(uid: string, score: number): Promise<void> {
+export async function updatePlayerScore(uid: string, score: number, playerName?: string): Promise<void> {
   if (!ensureFirebase() || !_db) return;
   const docRef = doc(_db, 'players', uid);
   const docSnap = await getDoc(docRef);
@@ -137,20 +137,27 @@ export async function updatePlayerScore(uid: string, score: number): Promise<voi
     const newTotal = data.totalScore + score;
     const newGames = data.gamesPlayed + 1;
 
-    await updateDoc(docRef, {
+    const updatePayload: any = {
       bestScore: newBest,
       totalScore: newTotal,
       gamesPlayed: newGames,
       lastPlayed: Date.now(),
-    });
+    };
+
+    if (playerName && data.playerName !== playerName) {
+      updatePayload.playerName = playerName;
+      updatePayload.displayName = playerName;
+    }
+
+    await updateDoc(docRef, updatePayload);
   } else {
     // Player doc doesn't exist yet — create it with this score
     await setDoc(docRef, {
       uid,
-      displayName: '',
+      displayName: playerName || uid,
       email: '',
       photoURL: '',
-      playerName: uid,
+      playerName: playerName || uid,
       bestScore: score,
       totalScore: score,
       gamesPlayed: 1,

@@ -257,6 +257,15 @@ function bindEvents() {
     startBtn.disabled = true;
     startBtn.textContent = 'Loading...';
 
+    // If online but not authenticated yet, try to sign in anonymously now
+    if (isFirebaseAvailable && !currentUser) {
+      try {
+        currentUser = await signInAnonymouslyUser();
+      } catch (e) {
+        console.warn('Anonymous auth retry failed:', e);
+      }
+    }
+
     try {
       const uid = currentUser ? currentUser.uid : getOrCreateLocalUid();
       playerData = {
@@ -461,7 +470,11 @@ async function saveScore(finalScore: number) {
   document.getElementById('liveBest')!.textContent = String(playerData?.bestScore || finalScore);
 
   if (isFirebaseAvailable && playerData) {
-    try { await updatePlayerScore(playerData.uid, finalScore); } catch { /* ignore */ }
+    try {
+      await updatePlayerScore(playerData.uid, finalScore, playerData.playerName);
+    } catch (e) {
+      console.warn('Failed to update player score in Firestore:', e);
+    }
   }
 
   if (isNewBest) showToast('🎉 New personal best!');
