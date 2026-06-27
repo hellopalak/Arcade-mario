@@ -96,7 +96,7 @@ export function getCurrentUser(): User | null {
 
 // --- Player Data Functions ---
 export async function getPlayerData(uid: string): Promise<PlayerData | null> {
-  if (!_db) return null;
+  if (!ensureFirebase() || !_db) return null;
   const docRef = doc(_db, 'players', uid);
   const docSnap = await getDoc(docRef);
   if (docSnap.exists()) {
@@ -171,7 +171,7 @@ export function subscribeToLeaderboard(
   callback: (entries: LeaderboardEntry[]) => void,
   maxEntries: number = 20
 ): Unsubscribe | null {
-  if (!_db) return null;
+  if (!ensureFirebase() || !_db) return null;
   const q = query(
     collection(_db, 'players'),
     orderBy('bestScore', 'desc'),
@@ -196,7 +196,7 @@ export function subscribeToLeaderboard(
 }
 
 export async function getLeaderboard(maxEntries: number = 20): Promise<LeaderboardEntry[]> {
-  if (!_db) return [];
+  if (!ensureFirebase() || !_db) return [];
   const q = query(
     collection(_db, 'players'),
     orderBy('bestScore', 'desc'),

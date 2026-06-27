@@ -470,10 +470,27 @@ async function saveScore(finalScore: number) {
   document.getElementById('liveBest')!.textContent = String(playerData?.bestScore || finalScore);
 
   if (isFirebaseAvailable && playerData) {
-    try {
-      await updatePlayerScore(playerData.uid, finalScore, playerData.playerName);
-    } catch (e) {
-      console.warn('Failed to update player score in Firestore:', e);
+    // Ensure we have an authenticated session for Firestore writes
+    if (!currentUser) {
+      try {
+        currentUser = await signInAnonymouslyUser();
+        if (currentUser && playerData.uid !== currentUser.uid) {
+          playerData.uid = currentUser.uid;
+          setLocalPlayerData(playerData);
+        }
+      } catch (e) {
+        console.warn('Anonymous auth failed at score save:', e);
+      }
+    }
+
+    if (currentUser) {
+      try {
+        // Ensure the player doc exists first (required for updatePlayerScore rules)
+        await syncPlayerToFirestore(playerData);
+        await updatePlayerScore(playerData.uid, finalScore, playerData.playerName);
+      } catch (e) {
+        console.warn('Failed to update player score in Firestore:', e);
+      }
     }
   }
 
